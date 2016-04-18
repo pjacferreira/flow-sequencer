@@ -12,7 +12,7 @@
   },
   "keywords": [
       "flow-control",
-      "sequence"
+      "sequence",
       "async",
       "asynchronous",
       "callback",
