@@ -7,7 +7,7 @@ It's also one of the advantages of Node. Unfortunately, it makes for very ugly c
 
 The natural solution would be to use a module like 'async' to solve the problem.
 But, I prefer to re-invent the wheel (Actually, I don't, I just needed
-something that make my code easier to read, make it more granular/reusable).
+something that made my code easier to read, more granular/reusable).
 
 So, I created this module, to try to create a BASIC like structure to callbacks.
 
@@ -58,8 +58,11 @@ This Basically creates an asynchronous call sequence, with some control structur
 ## Basic API
 
 .getInstance() - A wrapper around new. Returns an instance of Sequence that you can then use.
+
 .onSuccess(cb) - Method to call, if the Sequence Completes without Error.
+
 .onError(cb) - Method to call, if an Error Occurs, while processing the Sequence.
+
 .start(context) - Start the Sequence and pass in an optional Context Object.
 
 ### Important
@@ -74,8 +77,11 @@ has been augmented with a series of functions to manage the Sequence's flow.
 ## 'context' methods
 
 context.next() - Pass Control to the 'next' element in the sequence (method, if/then/else, loop, etc)
+
 context.break() - Break out of a sequence or loop (in a parent sequence, it's more or less equivalent to .end())
+
 context.end() - End the Sequence (break out of any loops nested and sequences)
+
 context.errors() - register's errors in the sequence, and depending on the error settings, will break out of sequence or loop.
 
 ## Examples
