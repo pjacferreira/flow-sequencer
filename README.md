@@ -99,7 +99,15 @@ context.errors() - register's errors in the sequence, and depending on the error
 ...
 ```
 
-Calls the method 'gt', with parameters qty and 1, which tests if the value of qty is greater than one:
+Calls the method 'gt', with parameters qty and 1, which tests if the value of qty is greater than one, more or less equivalent to the followin javascript code:
+
+```js
+...
+_gt(qty,1)
+...
+```
+
+The actual method:
 
 ```js
 ...
@@ -124,7 +132,7 @@ function _gt(compare, value) {
 4. if the test passed - the 'else' clause is 'executed'.
 
 
-### Example of 'else' clause method (as named above)
+### The method called by the 'else' clause (as named above)
 
 ```js
 ...
