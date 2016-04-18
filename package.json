@@ -1,6 +1,6 @@
 {
   "name": "flow-sequencer",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "Asynchronous Call Flow Sequencer",
   "main": "index.js",
   "scripts": {
@@ -15,5 +15,8 @@
   "bugs": {
     "url": "https://github.com/pjacferreira/flow-sequencer/issues"
   },
-  "homepage": "https://github.com/pjacferreira/flow-sequencer#readme"
+  "homepage": "https://github.com/pjacferreira/flow-sequencer#readme",
+  "dependencies": {
+    "lodash": "^4.11.1"
+  }
 }
