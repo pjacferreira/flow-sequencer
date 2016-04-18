@@ -99,11 +99,19 @@ context.errors() - register's errors in the sequence, and depending on the error
 ...
 ```
 
-Calls the method 'gt', with parameters qty and 1, which tests if the value of qty is greater than one, more or less equivalent to the followin javascript code:
+Calls the method 'gt', with parameters qty and 1, which tests if the value of qty is greater than one, more or less equivalent to the following javascript code:
 
 ```js
 ...
-_gt(qty,1)
+_gt(qty,1);
+...
+```
+
+or in the context of the Sequence:
+
+```js
+...
+_gt.call(context, qty,1);
 ...
 ```
 
