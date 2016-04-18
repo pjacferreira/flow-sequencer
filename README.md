@@ -3,11 +3,11 @@
 ## Basic Concept
 
 While working with SailsJS I ran into the one of the pains of NodeJS programming: Nested Callbacks.
-Even though this is also one of the advantages of Node programming, it's still make very ugly code.
+It's also one of the advantages of Node. Unfortunately, it makes for very ugly code.
 
 The natural solution would be to use a module like 'async' to solve the problem.
-Unfortunately, I prefer to re-invent the wheel (Actually, I don't, I just needed
-something simpler and made my code easier to read).
+But, I prefer to re-invent the wheel (Actually, I don't, I just needed
+something that make my code easier to read, make it more granular/reusable).
 
 So, I created this module, to try to create a BASIC like structure to callbacks.
 
@@ -53,9 +53,7 @@ Sequence
 ...
 ```
 
-It Basically creates an asynchronous call sequence.
-You some control structures if/then/else, loop, goto, Nested Sequences, etc.
-As long as you can live within the structure, it makes the code easier to read.
+This Basically creates an asynchronous call sequence, with some control structures (if/then/else, loop, goto, Nested Sequences, etc) sprinkled in. If you can live within this structure it should make your code easier to read.
 
 ## Basic API
 
@@ -66,21 +64,23 @@ As long as you can live within the structure, it makes the code easier to read.
 
 ### Important
 
-1. 'context' has to an javascript object.
+1. 'context' has to be a javascript object.
 2. If you don't pass in a 'context' object, an empty object '{}' will be used as the context.
 3. The 'context' object will serve as the 'this' for all the methods (callbacks) used within the Sequence.
 
 Within a method (callback) used in the Sequence the 'this' will always point to the 'context' object, WHICH,
-has been augmented with a series of functions that continue the flow.
+has been augmented with a series of functions to manage the Sequence's flow.
 
 ## 'context' methods
 
 context.next() - Pass Control to the 'next' element in the sequence (method, if/then/else, loop, etc)
 context.break() - Break out of a sequence or loop (in a parent sequence, it's more or less equivalent to .end())
-context.end() - End the Sequence (break's out of any loops nested and sequences)
+context.end() - End the Sequence (break out of any loops nested and sequences)
 context.errors() - register's errors in the sequence, and depending on the error settings, will break out of sequence or loop.
 
 ## Examples
+
+### Sequence Control structure
 
 ```js
 ...
@@ -110,7 +110,7 @@ function _gt(compare, value) {
 ...
 ```
 
-### Important
+#### Important
 
 1. 'this' === 'context' passed in .start(...)
 2. this.true() and this.false() is how the 'gt' method communicates if the test passed or failed.
@@ -118,7 +118,7 @@ function _gt(compare, value) {
 4. if the test passed - the 'else' clause is 'executed'.
 
 
-### Example of 'else' clause (above)
+### Example of 'else' clause method (as named above)
 
 ```js
 ...
