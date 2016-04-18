@@ -10,6 +10,15 @@
     "type": "git",
     "url": "git+ssh://git@github.com/pjacferreira/flow-sequencer.git"
   },
+  "keywords": [
+      "flow-control",
+      "sequence"
+      "async",
+      "asynchronous",
+      "callback",
+      "module",
+      "utility"
+  ],
   "author": "Paulo Ferreira <pf@sourcenotes.org>",
   "license": "MIT",
   "bugs": {
