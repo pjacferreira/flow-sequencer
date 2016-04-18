@@ -1,0 +1,19 @@
+{
+  "name": "flow-sequencer",
+  "version": "0.1.0",
+  "description": "Asynchronous Call Flow Sequencer",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+ssh://git@github.com/pjacferreira/flow-sequencer.git"
+  },
+  "author": "Paulo Ferreira <pf@sourcenotes.org>",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/pjacferreira/flow-sequencer/issues"
+  },
+  "homepage": "https://github.com/pjacferreira/flow-sequencer#readme"
+}
