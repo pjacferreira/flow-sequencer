@@ -1,7 +1,4 @@
-/* Copyright (C) 2016 Paulo Ferreira <pf@sourcenotes.org> - All Rights Reserved
- * Unauthorized copying of this file, via any medium is strictly prohibited
- * Proprietary and confidential
- */
+/* Copyright (C) 2016 Paulo Ferreira <pf@sourcenotes.org> */
 var _ = require('lodash');
 var utilities = require('../utilities/utilities');
 
@@ -284,68 +281,34 @@ Sequence.getInstance = function (parent) {
   return new Sequence(_isSequence(parent) ? parent : null);
 };
 
-/**
- *
- * @param {type} parent
- * @returns {nm$_sequence.Sequence.prototype}
- */
 Sequence.prototype.setParent = function (parent) {
   this.__parent = _isSequence(parent) ? parent : null;
   return this;
 };
 
-/**
- *
- * @param {type} parent
- * @returns {unresolved}
- */
 Sequence.prototype.isRootSequence = function (parent) {
   return _.isNil(this.__parent);
 };
 
-/**
- *
- * @returns {Boolean}
- */
 Sequence.prototype.breakOnError = function () {
   return this.__breakOnErrors;
 };
 
-/**
- *
- * @param {type} flag
- * @returns {nm$_sequence.Sequence.prototype}
- */
 Sequence.prototype.setBreakOnError = function (flag) {
   this.__breakOnErrors = !!flag;
   return this;
 };
 
-/**
- *
- * @param {type} success
- * @returns {nm$_sequence.Sequence.prototype}
- */
 Sequence.prototype.onSuccess = function (success) {
   this.__onSuccess = _.isFunction(success) ? success : null;
   return this;
 };
 
-/**
- *
- * @param {type} error
- * @returns {nm$_sequence.Sequence.prototype}
- */
 Sequence.prototype.onError = function (error) {
   this.__onError = _.isFunction(error) ? error : null;
   return this;
 };
 
-/**
- *
- * @param {type} entry
- * @returns {Sequence}
- */
 Sequence.prototype.add = function (entry) {
   // Is the Entry Valid?
   var new_entry = _cleanupEntry(entry);
@@ -362,27 +325,14 @@ Sequence.prototype.add = function (entry) {
   return this;
 };
 
-/**
- *
- * @returns {Boolean}
- */
 Sequence.prototype.hasErrors = function () {
   return this.__errors !== null;
 };
 
-/**
- *
- * @returns {Array}
- */
 Sequence.prototype.getErrors = function () {
   return this.__errors;
 };
 
-/**
- *
- * @param {type} errors
- * @returns {undefined|nm$_sequence.Sequence.prototype@call;break|nm$_sequence.Sequence.prototype@call;goto|nm$_sequence.Sequence.prototype@call;__processLOOPBlock|nm$_sequence.Sequence.prototype@call;__processEntry|Boolean|nm$_sequence.Sequence.prototype@call;next}
- */
 Sequence.prototype.errors = function (errors) {
   if (!this.isRootSequence()) {
     // Peek Stack
@@ -400,10 +350,6 @@ Sequence.prototype.errors = function (errors) {
   return this.__breakOnErrors ? this.break() : this.next();
 };
 
-/**
- *
- * @returns {Boolean}
- */
 Sequence.prototype.end = function () {
   this.__finished = true;
 
@@ -430,11 +376,6 @@ Sequence.prototype._parentEnd = function () {
   return this.__parent.end();
 };
 
-/**
- *
- * @param {type} label
- * @returns {undefined|nm$_sequence.Sequence.prototype@call;goto|nm$_sequence.Sequence.prototype@call;next|nm$_sequence.Sequence.prototype@call;break|nm$_sequence.Sequence.prototype@call;__processEntry|nm$_sequence.Sequence.prototype@call;__processLOOPBlock|Boolean}
- */
 Sequence.prototype.goto = function (label) {
   // Is this sequence finished?
   if (this.finished) { // YES: Ignore Call
