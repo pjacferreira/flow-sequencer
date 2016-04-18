@@ -1,0 +1,28 @@
+# Basic Files and Directories
+##############################
+*~
+*#
+*.bak
+*.org
+
+# Netbeans
+.netbeans
+nbproject
+
+# Logs
+logs
+*.log
+
+# Runtime data
+pids
+*.pid
+*.seed
+
+# Node and NPM
+node_modules
+
+# Extra Files
+##############
+/.project
+*.todo
+*.problems
