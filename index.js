@@ -440,7 +440,7 @@ Sequence.prototype.continue = function () {
   // Was an 'if' at the top of stack?
   if (top.hasOwnProperty('if')) { // YES
     // Does the 'if' have an 'then' clause?
-    if (!_.isNil(top['then']) { // YES: Treat a CONTINUE as if was a call to 'true'
+    if (!_.isNil(top['then'])) { // YES: Treat a CONTINUE as if was a call to 'true'
       return this.__processEntry(top['then']);
     }
   }
@@ -477,7 +477,7 @@ Sequence.prototype.break = function () {
   // Was an 'if' at the top of stack?
   if (top.hasOwnProperty('if')) { // YES
     // Does the 'if' have an 'else' clause?
-    if (!_.isNil(top['else']) { // YES: Treat a BREAK as if was a call to 'false'
+    if (!_.isNil(top['else'])) { // YES: Treat a BREAK as if was a call to 'false'
       return this.__processEntry(top['else']);
     }
   }
