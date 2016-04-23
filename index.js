@@ -1,13 +1,10 @@
 /* Copyright (C) 2016 Paulo Ferreira <pf@sourcenotes.org> */
 var _ = require('lodash');
 
-/*
- * HELPER METHODS
- */
-
+/* HELPER METHODS */
 function _nullOnEmpty(str) {
-  value = _.isString(value) ? value.trim() : null;
-  return (value !== null) && (value.length > 0) ? value : null;
+  str = _.isString(str) ? str.trim() : null;
+  return (str !== null) && (str.length > 0) ? str : null;
 }
 
 function _appendToArray(array, values) {
