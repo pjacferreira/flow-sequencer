@@ -1,6 +1,5 @@
 /* Copyright (C) 2016 Paulo Ferreira <pf@sourcenotes.org> */
 var _ = require('lodash');
-var utilities = require('../utilities/utilities');
 
 /*
  * HELPER METHODS
