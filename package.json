@@ -1,6 +1,6 @@
 {
   "name": "flow-sequencer",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "description": "Asynchronous Call Flow Sequencer",
   "main": "index.js",
   "scripts": {
