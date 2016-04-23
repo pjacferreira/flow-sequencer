@@ -367,7 +367,7 @@ Sequence.prototype.end = function () {
 };
 
 Sequence.prototype._parentEnd = function () {
-  // Reset Context to Point to Correct Seqeuence
+  // Reset Context to Point to Correct Sequence
   this.__context.sequence(this.__parent);
   return this.__parent.end();
 };
@@ -445,7 +445,7 @@ Sequence.prototype.continue = function () {
 };
 
 Sequence.prototype._parentContinue = function () {
-  // Reset Context to Point to Correct Seqeuence
+  // Reset Context to Point to Correct Sequence
   this.__context.sequence(this.__parent);
   return this.__parent.continue();
 };
@@ -482,7 +482,7 @@ Sequence.prototype.break = function () {
 };
 
 Sequence.prototype._parentBreak = function () {
-  // Reset Context to Point to Correct Seqeuence
+  // Reset Context to Point to Correct Sequence
   this.__context.sequence(this.__parent);
   return this.__parent.break();
 };
@@ -541,13 +541,13 @@ Sequence.prototype.next = function () {
 };
 
 Sequence.prototype._parentNext = function () {
-  // Reset Context to Point to Correct Seqeuence
+  // Reset Context to Point to Correct Sequence
   this.__context.sequence(this.__parent);
   return this.__parent.next();
 };
 
 Sequence.prototype._parentErrors = function (errors) {
-  // Reset Context to Point to Correct Seqeuence
+  // Reset Context to Point to Correct Sequence
   this.__context.sequence(this.__parent);
   return this.__parent.errors(errors);
 };
@@ -643,7 +643,7 @@ Sequence.prototype.start = function (context) {
     // Initialize the Context
     context = _.merge({
       sequence: function(set) {
-        if(_.isNil(set) || !(set instanceof Seqeuence)) {
+        if(_.isNil(set) || !(set instanceof Sequence)) {
           return this.__sequence;
         } else {
           var old = this.__sequence;
