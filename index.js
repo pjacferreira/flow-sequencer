@@ -326,7 +326,7 @@ Sequence.prototype.hasErrors = function () {
 };
 
 Sequence.prototype.getErrors = function () {
-  return this.__errors;
+  return this.__errors !== null ? this.__errors : [];
 };
 
 Sequence.prototype.errors = function (errors) {
