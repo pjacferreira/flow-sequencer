@@ -7,6 +7,14 @@ function _nullOnEmpty(str) {
   return (str !== null) && (str.length > 0) ? str : null;
 }
 
+function _isSimpleObject(obj) {
+  return !_.isNil(obj) && (typeof obj === "object");
+}
+
+function _isSequence(entry) {
+  return _isSimpleObject(entry) && (entry instanceof Sequence);
+}
+
 function _appendToArray(array, values) {
   if (!_.isNil(values)) {
     if (_.isNil(array)) {
@@ -30,10 +38,6 @@ function _wrappedCall(context, f, args) {
   }
 }
 
-function _isSequence(entry) {
-  return _.isObject(entry) && (entry instanceof Sequence);
-}
-
 function _isMethodCall(entry) {
   return _.isObject(entry) && entry.hasOwnProperty("method");
 }
@@ -41,209 +45,407 @@ function _isMethodCall(entry) {
 function _callMethod(context, entry) {
   return _wrappedCall(context, entry.method, entry.hasOwnProperty("params") ? entry.params : null);
 }
-function _cleanupLabel(label) {
-  label = _nullOnEmpty(label);
-  return (label !== null) ? label.toLowerCase() : null;
+
+function __cleanParamsProperty(entry) {
+  var params = null;
+  if (entry.hasOwnProperty("params")) {
+    params = entry["params"];
+    params = _.isArray(params) ? (params.length ? params : null) : [params];
+  }
+  return params;
 }
 
-function _cleanupMethodParameters(params) {
-  return _.isNil(params) || _.isArray(params) ? params : [params];
+function __cleanLabelProperty(entry, top) {
+  // Get Basis for Entry Label
+  var label = !top ?
+              null :
+              (entry.hasOwnProperty("label") ? entry["label"] : null);
+
+  // Do we have a Label Set?
+  if (label !== null) { // YES: Trim and Clean
+    label = _nullOnEmpty(label);
+  }
+
+  // Return Label for Entry
+  return label;
 }
 
-function _cleanupMethodDefinition(entry) {
-  var o = null;
+function __cleanGotoProperty(entry, top) {
+  // Get Basis for Entry Label
+  var goto = entry.hasOwnProperty("goto") ? entry["goto"] : null;
 
-  if (_.isFunction(entry)) {
-    o = {
-      "label": null,
-      "method": entry,
-      "params": null
-    };
-  } else if (_.isString(entry)) {
-    entry = _nullOnEmpty(entry);
-    if ((entry !== null) && _.isFunction(global[entry])) {
-      o = {
-        "label": null,
-        "method": global[entry],
-        "params": null
+  // Do we have a Goto Set?
+  if (goto !== null) { // YES: Clean it Up
+    // Is the 'goto' value a string?
+    if (_.isString(goto)) { // YES: Clean it
+      goto = _nullOnEmpty(goto);
+    } else
+    // Is the 'goto' a function?
+    if (_.isFunction(goto) || _isSimpleObject(goto)) { // YES: Handle it as a Method Entry
+      goto = _cleanMethod(goto, false);
+    } else { // ELSE: Invalid Value ignore it
+      goto = null;
+      console.error("Invalid value for entry 'goto'");
+    }
+  }
+
+  // Return 'goto' for Entry
+  return goto;
+}
+
+function _cleanError(entry, top) {
+  // Cleanup Incoming Parameters
+  top = !!top;
+
+  // Is 'entry' an Object?
+  if (_isSimpleObject(entry)) { // YES
+
+    // Is the error's value a non empty string or a function?
+    var error = entry.hasOwnProperty("error") ? entry["error"] : null;
+    error = _.isString(error) ?
+            _nullOnEmpty(error) :
+            _cleanMethod(error, false);
+    if (error !== null) { // YES
+      // Cleanup Properties
+      var label = __cleanLabelProperty(entry, top);
+      var goto = __cleanGotoProperty(entry, false);
+      var doBreak = entry.hasOwnProperty("do-break") ? !!entry["do-break"] : true;
+
+      // Do we have a 'goto' or an 'error method'?
+      if ((goto !== null) || _isSimpleObject(error)) { // YES
+        doBreak = false;
+      }
+
+      // Return Clean Entry
+      return {
+        "label": label,
+        "error": error,
+        "goto": goto,
+        "do-break": doBreak
       };
     }
-  } else if (_.isObject(entry)) {
-    if (entry.hasOwnProperty("method")) {
-      o = _cleanupMethodDefinition(entry.method);
-      if (o !== null) {
-        o.label = entry.hasOwnProperty("label") ? _cleanupLabel(entry.label) : null;
-        o.params = entry.hasOwnProperty("params") ? _cleanupMethodParameters(entry.params) : null;
-      }
-    }
   }
 
-  return o;
-}
-
-function _cleanupGoToEntry(entry) {
-  var goto = entry.goto;
-
-  // Is the goto's value a non empty string or a function?
-  goto = _.isString(goto) ?
-          _nullOnEmpty(goto) :
-          (_.isFunction(goto) ? goto : null);
-  if (goto !== null) { // YES
-    return {
-      "label": null,
-      "goto": goto
-    };
-  }
-
+  console.error("Invalid 'error' Entry.");
   return null;
 }
 
-function _cleanupErrorEntry(entry) {
-  var error = entry.error;
+function _cleanGoto(entry, top) {
+  // Cleanup Incoming Parameters
+  top = !!top;
 
   // Is the error's value a non empty string or a function?
-  error = _.isString(error) ?
-          _nullOnEmpty(error) :
-          (_.isFunction(error) ? error : null);
-  if (error !== null) { // YES
+  var jump = __cleanGotoProperty(entry, false);
+  if (jump !== null) { // YES
+    // Cleanup Properties
+    var label = __cleanLabelProperty(entry, top);
+
+    // Return Clean Entry
     return {
-      "label": null,
-      "error": error
+      "label": label,
+      "goto": jump
     };
   }
 
+  console.error("Invalid 'goto' Entry.");
   return null;
 }
 
-function _cleanupIfEntry(entry) {
-  /* IF DEFINITION :=
-   * 'method_call_definition' := {
-   *   'method' ':' (function | function_by_name)
-   *   'params' ':' parameter
-   *   '}'
-   * 'method_call' := method_definition |
-   *                  function_by_name (string) |
-   *                  function (reference)
-   *
-   * 'if' := method_call                  -- Condition Clause
-   * [OPTIONAL] 'then' := sequence_entry  -- Executed if Condition Clause is call this.true()
-   * [OPTIONAL] 'else' := sequence_entry  -- Executed if Condition Clause is call this.false()
-   */
-  var entryIF = _cleanupMethodDefinition(entry["if"]);
+function _cleanMethod(entry, top) {
+  // Cleanup Incoming Parameters
+  top = !!top;
 
-  if (entryIF !== null) {
-    var entryTHEN = entry.hasOwnProperty("then") ? _cleanupEntry(entry["then"]) : null;
-    var entryELSE = entry.hasOwnProperty("else") ? _cleanupEntry(entry["else"]) : null;
-    if ((entryTHEN !== null) || (entryELSE !== null)) {
+  // Is it a function?
+  if (_.isFunction(entry)) { // YES: Convert it to a Method Entry
+    return {
+      "label": null,
+      "method": entry,
+      "params": null,
+      "goto": null
+    };
+  }
+
+  // Is 'entry' an Object?
+  if (_isSimpleObject(entry)) { // YES: Treat it as a Second Level Method Entry
+    // Clean Method Property
+    var method = null;
+    if (entry.hasOwnProperty("method")) {
+      method = _.isFunction(entry["method"]) ? entry["method"] : null;
+    }
+
+    // Do we have a valid 'method' Property?
+    if (method !== null) { // YES
+      // Cleanup Properties
+      var label = __cleanLabelProperty(entry, top);
+      var jump = __cleanGotoProperty(entry, false);
+      var params = __cleanParamsProperty(entry);
+
+      // Return Clean Entry
       return {
-        "label": entry.label,
-        "if": entryIF,
-        "then": entryTHEN,
-        "else": entryELSE
+        "label": label,
+        "method": method,
+        "params": params,
+        "goto": jump
       };
     }
   }
 
+  console.error("Invalid Method Entry.");
   return null;
 }
 
-function _cleanupLoopEntry(entry) {
-  /* LOOP DEFINTION :=
-   * 'method_call_definition' := {
-   *   'method' ':' (function | function_by_name)
-   *   'params' ':' parameter
-   *   '}'
-   * 'method_call' := method_definition |
-   *                  function_by_name (string) |
-   *                  function (reference)
-   *
-   * 'loop' := 'true' |                         -- Infinite Loop : Break will
-   *                                               have to occur in the block
-   *           method_call                      -- Function Initialize and Controls Loop
-   * 'block' := method_call                     -- Loop Block: Execute Single Method
-   *            sequence                        -- Loop Block: Execute a Sequence
-   * [OPTIONAL] 'on-success' := sequence_entry  -- Entry to Execute on Success
-   *                                               (Loop Exited Without Errors)
-   * [OPTIONAL] 'on-error'   := sequence_entry  -- Entry to Execute on Error
-   *                                               (Does not call error on parent
-   *                                               sequence, unless the sequence entry does)
-   */
+function _cleanSequence(entry, top) {
+  // Cleanup Incoming Parameters
+  top = !!top;
+
+  // Is it a Sequence Instance?
+  if (_isSequence(entry)) { // YES: Convert it to a Senquence Entry
+    return {
+      "label": null,
+      "sequence": entry,
+      "goto": null
+    };
+  }
+
+  if (_isSimpleObject(entry)) { // YES: Treat it as a Second Level Method Entry
+    // Clean Method Property
+    var sequence = null;
+    if (entry.hasOwnProperty("sequence")) {
+      sequence = _isSequence(entry["sequence"]) ? entry["sequence"] : null;
+    }
+
+    if (sequence !== null) {
+      // Cleanup Properties
+      var label = __cleanLabelProperty(entry, top);
+      var goto = __cleanGotoProperty(entry, false);
+
+      // Return Clean Entry
+      return {
+        "label": label,
+        "sequence": sequence,
+        "goto": goto
+      };
+    }
+  }
+
+  console.error("Invalid Sequence Entry.");
+  return null;
+}
+
+function _cleanIf(entry, top) {
+  // Cleanup Incoming Parameters
+  top = !!top;
+
+  // Do we have a valid 'if' condition clause?
+  var entryIF = _cleanMethod(entry["if"], false);
+  if (entryIF !== null) { // YES
+
+    // Does the 'if' conditional method have a 'goto'?
+    if (entryIF.goto !== null) { // YES: Warn and Clear it
+      console.warn("IF conditional method entry can not have 'goto' set");
+      entryIF["goto"] = null;
+    }
+
+    // Cleanup Properties
+    var label = __cleanLabelProperty(entry, top);
+    var entryTHEN = entry.hasOwnProperty("then") ? _cleanEntry(entry["then"], false) : null;
+    var entryELSE = entry.hasOwnProperty("else") ? _cleanEntry(entry["else"], false) : null;
+
+    // Do we have (At least) ONE OF 'then'/'else'
+    if ((entryTHEN !== null) || (entryELSE !== null)) { // YES: Okay Continue
+      return {
+        "label": label,
+        "if": entryIF,
+        "then": entryTHEN,
+        "else": entryELSE,
+        "goto": null // To Make Entry Processing Easier....
+      };
+    }
+
+    console.error("'else'/'then' cannot both be missing or invalid");
+  } else {
+    console.error("'if' conditional clause is missing or invalid");
+  }
+
+  return null;
+}
+
+function _cleanLoop(entry, top) {
+  // Loop Conditional Clause
   var control = entry["loop"];
   if (_.isBoolean(control)) {
     control === true ? true : null;
   } else {
-    control = _cleanupMethodDefinition(control);
+    control = _cleanMethod(control, false);
+
+    // Does the 'loop' conditional method have a 'goto'?
+    if (control.goto !== null) { // YES: Warn and Clear it
+      console.warn("LOOP conditional method entry can not have 'goto' set");
+      control["goto"] = null;
+    }
   }
 
-  if (control !== null) {
-    var block = entry.hasOwnProperty("block") ? entry.block : null;
-    if (!_isSequence(block)) {
-      block = _cleanupMethodDefinition(control);
-    }
+  // Do we have a Valid Conditional Clause?
+  if (control !== null) { // YES
+    console.error("Loop missing valid conditional entry");
+    return null;
+  }
 
-    if (block) {
-      // Cleanup 'on-success'
-      var onSuccess = entry.hasOwnProperty("on-success") ?
-                      _cleanupEntry(entry["on-success"]) : null;
-
-      // Cleanup 'on-error'
-      var onError = entry.hasOwnProperty("on-error") ? entry["on-error"] : null;
-      if (!_.isBoolean(onError)) {
-        onError = onError !== null ? _cleanupEntry(onError) : null;
+  // Do we have Valid Loop Block
+  var block = null;
+  if (entry.hasOwnProperty("block")) {
+    block = _cleanEntry(entry["block"]);
+    if (block.hasOwnProperty("error")) {
+      console.error("a LOOP block cannot be an 'error' entry");
+      block = null;
+    } else if (block.hasOwnProperty("goto")) {
+      if (!(block.hasOwnProperty("method") ||
+            block.hasOwnProperty("loop") ||
+            block.hasOwnProperty("sequence") ||
+            block.hasOwnProperty("if"))
+         ) {
+        console.error("a LOOP block cannot be an 'goto' entry");
+        block = null;
       }
-
-      return {
-        "label": entry.label,
-        "loop": control,
-        "block": block,
-        "on-success": onSuccess,
-        "on-error": onError
-      };
     }
   }
 
-  return null;
+  if (block === null) {
+    console.error("Loop missing valid block entry");
+    return null;
+  }
+
+  // Does the 'block' entry have a 'goto'?
+  if (block.goto !== null) { // YES: Warn and Clear it
+    console.warn("LOOP block entry can not have 'goto' set");
+    control["goto"] = null;
+  }
+
+  // Is the Block a Sequence?
+  if (!block.hasOwnProperty("sequence")) { // NO: Convert to a Sequence
+    /* NOTE: This is a HACK to simplify loop handling (i.e. we make sure)
+     * that all loop 'blocks' are sequences
+     */
+
+    // TODO: Optimize Processing for Single Entry Loop 'block's
+    var sequence = Sequence.getInstance().add(block);
+    block = {
+      "label": null,
+      "sequence": sequence,
+      "goto": null
+    };
+  }
+
+  // Cleanup Properties
+  var label = __cleanLabelProperty(entry, top);
+  var goto = __cleanGotoProperty(entry, false);
+
+  // Cleanup 'on-success'
+  var onSuccess = entry.hasOwnProperty("on-success") ?
+                  _cleanEntry(entry["on-success"]) : null;
+
+  // Cleanup 'on-error'
+  var onError = entry.hasOwnProperty("on-error") ? entry["on-error"] : null;
+  if (!_.isBoolean(onError)) {
+    onError = onError !== null ? _cleanEntry(onError) : null;
+  }
+
+  return {
+    "label": label,
+    "loop": control,
+    "block": block,
+    "on-success": onSuccess,
+    "on-error": onError,
+    "goto": goto
+  };
 }
 
-function _cleanupObjectEntry(entry) {
-  // Do we have a 'GOTO' Entry?
-  if (entry.hasOwnProperty("goto")) { // YES: Clean it up
-    return _cleanupGoToEntry(entry);
-  }
+function _cleanEntry(entry, top) {
+  if (!_.isNil(entry)) {
+    if (_.isFunction(entry)) {
+      return _cleanMethod(entry, top);
+    } else if (_isSequence(entry)) {
+      return _cleanSequence(entry, top);
+    } else if (_isSimpleObject(entry)) {
+      if (entry.hasOwnProperty("error")) { // YES: Clean it up
+        return _cleanError(entry, top);
+      }
+      if (entry.hasOwnProperty("sequence")) { // YES: Clean it up
+        return _cleanSequence(entry, top);
+      }
+      if (entry.hasOwnProperty("method")) { // YES: Clean it up
+        return _cleanMethod(entry, top);
+      }
+      if (entry.hasOwnProperty("if")) { // YES: Clean it up
+        return _cleanIf(entry, top);
+      }
+      if (entry.hasOwnProperty("loop")) { // YES: Clean it up
+        return _cleanLoop(entry, top);
+      }
+      if (entry.hasOwnProperty("goto")) { // YES: Clean it up
+        return _cleanGoto(entry, top);
+      }
+    }
 
-  if (entry.hasOwnProperty("error")) { // YES: Clean it up
-    return _cleanupErrorEntry(entry);
-  }
-
-  // Does the entry have a label?
-  if (entry.hasOwnProperty("label")) { // YES: Clean it up
-    entry.label = _cleanupLabel(entry.label);
-  } else {
-    entry.label = null;
-  }
-
-  // Is it an IF/THEN/ELSE Clause?
-  if (entry.hasOwnProperty("if")) { // YES: Clean it up
-    return _cleanupIfEntry(entry);
-  }
-
-  // Is it a LOOP Clause?
-  if (entry.hasOwnProperty("loop")) { // YES: Clean it up
-    return _cleanupLoopEntry(entry);
-  }
-
-  // Default Must be a Method Definition
-  return _cleanupMethodDefinition(entry);
-}
-
-function _cleanupEntry(entry) {
-  if (!_isSequence(entry)) {
-    return _.isFunction(entry) ? _cleanupMethodDefinition(entry) : _cleanupObjectEntry(entry);
+    console.error("Invalid Entry Type.");
+    entry = null;
   }
 
   return entry;
 }
 
+var __context = {
+  sequence: function(set) {
+    if (_.isNil(set) || !(set instanceof Sequence)) {
+      return this.__sequence;
+    } else {
+      var old = this.__sequence;
+      this.__sequence = set;
+      return old;
+    }
+  },
+  errors: function(err, doBreak) {
+    doBreak = _.isNil(doBreak) ? true : !!doBreak;
+    return this.__sequence._errors(err, doBreak);
+  },
+  goto: function(label) {
+    return this.__sequence.goto(label);
+  },
+  end: function() {
+    return this.__sequence.end();
+  },
+  next: function() {
+    return this.__sequence.__next();
+  },
+  break: function() { // Stop the Loop
+    return this.__sequence.break();
+  },
+  continue: function() { // Continue the Loop
+    return this.__sequence.continue();
+  },
+  "true": function() { // Continue the Loop
+    return this.__sequence.true();
+  },
+  "false": function() { // Continue the Loop
+    return this.__sequence.false();
+  },
+  async: function(call) {
+    if (this.hasOwnProperty(call) && _.isFunction(this[call])) {
+      var saveThis = this;
+      setTimeout(function() {
+        saveThis[call]();
+      }, 0);
+    };
+  }
+};
+
+/* RULES:
+ * function starting with _ are functions that are only callable from within the
+ * sequence context (i.e. methods that make up part of the sequence steps)
+ * functions starting with __ are private functions that are only callable from
+ * within sequence methods (No Parameter Validation is done, the values are
+ * expected to be correct)
+ */
 function Sequence(parent) {
   // Reference to Parent Sequence
   this.__parent = parent;
@@ -251,28 +453,14 @@ function Sequence(parent) {
   // Control Flags
   this.__breakOnErrors = true;
 
-  // Errors List
-  this.__errors = null;
-
-  // Sequence Context
-  this.__context = null;
-
   // Success / Error Handlers
   this.__onSuccess = null;
   this.__onError = null;
 
   // Process Control
-  this.__finished = false;
-  this.__current = 0;
   this.__calls = [];
   this.__stack = [];
   this.__labels = {};
-
-  // Loop Control
-  this.__loopErrors = null;
-  this.__loopBlock = null;
-  this.__loopRun = false;
-  this.__loopExitEntry = false;
 }
 
 /**
@@ -282,6 +470,20 @@ function Sequence(parent) {
  */
 Sequence.getInstance = function(parent) {
   return new Sequence(_isSequence(parent) ? parent : null);
+};
+
+Sequence.prototype.reset = function(parent) {
+  // Errors List
+  this.__errorsList = null;
+
+  // Sequence Context
+  this.__context = null;
+
+  // Loop Control
+  this.__loopErrors = null;
+  this.__loopRun = false;
+
+  return this;
 };
 
 Sequence.prototype.setParent = function(parent) {
@@ -314,7 +516,7 @@ Sequence.prototype.onError = function(error) {
 
 Sequence.prototype.add = function(entry) {
   // Is the Entry Valid?
-  var newEntry = _cleanupEntry(entry);
+  var newEntry = _cleanEntry(entry, true);
   if (_.isNil(newEntry)) { // NO: Log Error
     console.error("Attempt to Introduce Invalid Entry");
   } else { // YES: Add Entry
@@ -329,318 +531,11 @@ Sequence.prototype.add = function(entry) {
 };
 
 Sequence.prototype.hasErrors = function() {
-  return this.__errors !== null;
+  return this.__errorsList !== null;
 };
 
 Sequence.prototype.getErrors = function() {
-  return this.__errors !== null ? this.__errors : [];
-};
-
-Sequence.prototype.errors = function(errors) {
-  if (!this.isRootSequence()) {
-    // Peek Stack
-    var top = this.__stack.length ? this.__stack[this.__stack.length - 1] : null;
-
-    // Is the Top of the Stack a 'loop' entry?
-    if ((top !== null) && top.hasOwnProperty("loop")) { // YES
-      // Errors must have been called from either Loop Check Function or Block Check Method
-      this.__loopErrors = _appendToArray(this.__loopErrors, errors);
-      return this.break();
-    }
-  }
-
-  this.__errors = _appendToArray(this.__errors, errors);
-  return this.__breakOnErrors ? this.break() : this.next();
-};
-
-Sequence.prototype.end = function() {
-  this.__finished = true;
-
-  // Is this a Child Sequence?
-  if (!this.isRootSequence()) { // YES: Call the Parent Context's 'end'
-    if (this.__errors !== null) { // Transfer Errors to Parent
-      this.__parent._error(this.__errors);
-    }
-    return this._parentEnd();
-  }
-
-  // Did the run generate errors?
-  if (this.__errors !== null) { // YES: Call Error Handler (if it exists)
-    // Call the Error Handler for the Sequence
-    return this.__onError !== null ?
-           _wrappedCall(this.__context, this.__onError, this.__errors) : false;
-  } else { // NO: Call the Success Handler for the Sequence (if it exists)
-    return this.__onSuccess !== null ?
-           _wrappedCall(this.__context, this.__onSuccess) : false;
-  }
-};
-
-Sequence.prototype._parentEnd = function() {
-  // Reset Context to Point to Correct Sequence
-  this.__context.sequence(this.__parent);
-  return this.__parent.end();
-};
-
-Sequence.prototype.goto = function(label) {
-  // Is this sequence finished?
-  if (this.finished) { // YES: Ignore Call
-    throw "SEQUENCE: Called goto() after sequence completed.";
-  }
-
-  // Is Possible Valid Label?
-  label = _nullOnEmpty(label);
-  if (_.isNil(label)) { // NO
-    throw "Missing or Invalid Goto Label";
-  }
-
-  // All Labels are Lower Case
-  label = label.toLowerCase();
-
-  // Do we want to exit, this and any parent sequences,
-  switch (label) {
-    case "continue": // We want to RESTART Loop
-      return this.continue();
-    case "break": // We want to END Current Sequence
-      return this.break();
-    case "end": // We want to END Everything
-      return this.end();
-    default: // Default Handling
-      // Does the Label Exist?
-      if (!this.__labels.hasOwnProperty(label)) { // NO
-        throw "Missing Goto Label [" + label + "]";
-      }
-
-      this.__current = this.__labels[label];
-  }
-  return this.next();
-};
-
-Sequence.prototype.continue = function() {
-  // Pop element Off Stack
-  var top = this.__stack.pop();
-
-  // Was a 'loop' at the top of stack?
-  if (top.hasOwnProperty("loop")) { // YES
-    // Are we Dealing with a Call from Within Loop Exit Entry?
-    if (this.__loopExitEntry) { // YES
-      return this._parentNext();
-    }
-
-    // Put the Loop back on the Stack
-    this.__stack.push(top);
-
-    // Did the 'continue' come from inside loop block?
-    if (!_.isNil(this.__loopBlock)) { // YES: Re-run the Loop
-      // Is the Loop Block just a Simple Method Call?
-      if (!_isMethodCall(this.__loopBlock)) { // NO: it's a Sequence
-        this.__loopErrors = _appendToArray(this.__loopErrors, this.__loopBlock.getErrors());
-      }
-
-      return this.__executeCheck(top);
-    }
-
-    return this.__executeBlock(top["block"]);
-  }
-
-  // Was an 'if' at the top of stack?
-  if (top.hasOwnProperty("if")) { // YES
-    // Does the 'if' have an 'then' clause?
-    if (!_.isNil(top["then"])) { // YES: Treat a CONTINUE as if was a call to 'true'
-      return this.__processEntry(top["then"]);
-    }
-  }
-
-  return this.next();
-};
-
-Sequence.prototype._parentContinue = function() {
-  // Reset Context to Point to Correct Sequence
-  this.__context.sequence(this.__parent);
-  return this.__parent.continue();
-};
-
-Sequence.prototype.break = function() {
-  // Pop element Off Stack
-  var top = this.__stack.pop();
-
-  // Where we in the Middle of an 'if' or 'loop'?
-  if (_.isNil(top)) { // NO: Just pass it up
-    // Is this the 'root' sequence?
-    if (this.isRootSequence()) { // YES: Then just end it
-      return this.end();
-    }
-
-    // Did the Sequence Finish Normally? YES: Continue Parent, NO: Break Parent
-    return this.finished ? this._parentContinue() : this._parentBreak();
-  }
-
-  // Was a 'loop' at the top of stack?
-  if (top.hasOwnProperty("loop")) { // YES
-    return this.__handleLoopBreak(top);
-  }
-
-  // Was an 'if' at the top of stack?
-  if (top.hasOwnProperty("if")) { // YES
-    // Does the 'if' have an 'else' clause?
-    if (!_.isNil(top["else"])) { // YES: Treat a BREAK as if was a call to 'false'
-      return this.__processEntry(top["else"]);
-    }
-  }
-
-  return this.next();
-};
-
-Sequence.prototype._parentBreak = function() {
-  // Reset Context to Point to Correct Sequence
-  this.__context.sequence(this.__parent);
-  return this.__parent.break();
-};
-
-Sequence.prototype.__handleLoopBreak = function(loop) {
-  // Are we Dealing with a Call from Within Loop Exit Entry?
-  if (this.__loopExitEntry) { // YES
-    return this.__parent.break();
-  }
-
-  // Did the 'break' occur in the Check Function?
-  if (_.isNil(this.__loopBlock)) { // YES
-    // Has the Loop Block been Executed (at least once)?
-    if (this.__loopRun) { // YES: We have to do Loop Exit Processing
-      return this.__exitLoop(loop);
-    } else {
-      return this.__loopErrors === null ?
-              this._parentNext() :
-              this._parentErrors(this.__loopErrors);
-    }
-  } else { // NO: It occurred in the Block : We have to do Loop Exit Processing
-    return this.__exitLoop(loop);
-  }
-};
-
-Sequence.prototype.__exitLoop = function(loop) {
-  if (this.__loopErrors === null) {
-    if (loop.hasOwnProperty("on-success")) {
-      this.__stack.push(loop);
-      this.__loopExitEntry = true;
-      return this._processEntry(loop["on-success"]);
-    }
-    return this._parentErrors(this.__loopErrors);
-  } else {
-    if (loop.hasOwnProperty("on-error")) {
-      this.__stack.push(loop);
-      this.__loopExitEntry = true;
-      return this._processEntry(loop["on-error"]);
-    }
-
-    return this._parentErrors(this.__loopErrors);
-  }
-};
-
-Sequence.prototype.next = function() {
-  // Is this sequence finished?
-  if (this.finished) { // YES: Ignore Call
-    throw "SEQUENCE: Called next() after sequence completed.";
-  }
-
-  if (this.__current < this.__calls.length) {
-    return this.__processEntry(this.__calls[this.__current++]);
-  } else if (this.__current === this.__calls.length) {
-    return this.break();
-  }
-};
-
-Sequence.prototype._parentNext = function() {
-  // Reset Context to Point to Correct Sequence
-  this.__context.sequence(this.__parent);
-  return this.__parent.next();
-};
-
-Sequence.prototype._parentErrors = function(errors) {
-  // Reset Context to Point to Correct Sequence
-  this.__context.sequence(this.__parent);
-  return this.__parent.errors(errors);
-};
-
-Sequence.prototype.true = function() {
-  return this.continue();
-};
-
-Sequence.prototype.false = function() {
-  return this.break();
-};
-
-Sequence.prototype.__processEntry = function(entry) {
-  // Is the Entry a Sequence?
-  if (entry instanceof Sequence) { // YES: Run it
-    entry.setParent(this);
-    return entry.start(this.__context);
-  }
-
-  // Is the Entry a Error Statement?
-  if (entry.hasOwnProperty("error")) { // YES
-    var error = entry.error;
-
-    // Should we call a Method?
-    if (_isMethodCall(error)) { // YES
-      /* Treat Method Call as async (i.e. the method will have to call
-       * .next()/.continue()/.error() as it sees fit
-       */
-      return _callMethod(this.__context, error);
-    } else { // NO: Just Pass the String to the Errors Handler
-      return this.errors(error);
-    }
-  }
-
-  // Is the Entry a Goto Statement?
-  if (entry.hasOwnProperty("goto")) { // YES
-    var label = entry.goto;
-    return this.goto(_isMethodCall(label) ? _callMethod(this.__context, label) : label);
-  }
-
-  // Is the Entry an If Statement?
-  if (entry.hasOwnProperty("if")) { // YES
-    return this.__processIF(entry);
-  }
-
-  // Is the Entry a Loop Statement?
-  if (entry.hasOwnProperty("loop")) { // YES
-    return this.__processLOOP(entry);
-  }
-
-  // Is a Method Call?
-  if (_isMethodCall(entry)) {
-    return _callMethod(this.__context, entry);
-  }
-
-  // Invalid Method Entry
-  console.log(entry);
-  throw "Invalid Sequence Entry";
-};
-
-Sequence.prototype.__processIF = function(entry) {
-  this.__stack.push(entry);
-  return _callMethod(this.__context, entry["if"]);
-};
-
-Sequence.prototype.__processLOOP = function(entry) {
-  this.__stack.push(entry);
-  this.__loopErrors = [];
-  this.__loopRun = false;
-  this.__loopExitEntry = false;
-  return this.__executeCheck(entry);
-};
-
-Sequence.prototype.__executeCheck = function(entry) {
-  var check = entry["loop"];
-  this.__loopBlock = null;
-  return _.isBoolean(check) ?
-         this.__executeBlock(entry["block"]) : _callMethod(this.__context, check);
-};
-
-Sequence.prototype.__executeBlock = function(block) {
-  this.__loopBlock = block;
-  this.__loopRun = true;
-  return this.__processEntry(block);
+  return this.__errorsList !== null ? this.__errorsList : [];
 };
 
 Sequence.prototype.start = function(context) {
@@ -663,28 +558,28 @@ Sequence.prototype.start = function(context) {
         }
       },
       errors: function(err) {
-        return this.__sequence.errors(err);
-      },
-      end: function() {
-        return this.__sequence.end();
+        return this.__sequence._errors(err, true);
       },
       goto: function(label) {
-        return this.__sequence.goto(label);
+        return this.__sequence._goto(label);
+      },
+      end: function() {
+        return this.__sequence._end();
       },
       next: function() {
-        return this.__sequence.next();
+        return this.__sequence._next();
       },
       break: function() { // Stop the Loop
-        return this.__sequence.break();
+        return this.__sequence._break();
       },
       continue: function() { // Continue the Loop
-        return this.__sequence.continue();
+        return this.__sequence._continue();
       },
       "true": function() { // Continue the Loop
-        return this.__sequence.true();
+        return this.__sequence._true();
       },
       "false": function() { // Continue the Loop
-        return this.__sequence.false();
+        return this.__sequence._false();
       },
       async: function(call) {
         if (this.hasOwnProperty(call) && _.isFunction(this[call])) {
@@ -704,20 +599,495 @@ Sequence.prototype.start = function(context) {
   context.sequence(this);
 
   try {
+    // Errors List
+    this.__errorsList = null;
+
+    // Loop Control
+    this.__loopErrors = null;
+    this.__loopRun = false;
+
     // Initialize Sequence
     this.__finished = false;
     this.__current = 0;
     this.__stack = [];
+
+    // Sequence Context
     this.__context = context;
 
     // Start the Sequence
-    this.next();
+    this.__next();
   } catch (e) {
-    this.__errors = _appendToArray(this.__errors, e);
-    this.end();
+    this.__errorsList = _appendToArray(this.__errorsList, e);
+    this.__end();
   }
 
   return this;
+};
+
+Sequence.prototype._goto = function(label) {
+  // Is this sequence finished?
+  if (this.finished) { // YES: Ignore Call
+    throw "SEQUENCE: Called 'goto' after sequence completed.";
+  }
+
+  // Is Possible Valid Label?
+  label = _nullOnEmpty(label);
+  if (_.isNil(label)) { // NO
+    throw "Missing or Invalid Goto Label";
+  }
+
+  return this.__goto(label);
+};
+
+Sequence.prototype.__goto = function(label) {
+  // All Labels are Lower Case
+  label = label.toLowerCase();
+
+  // Do we want to exit, this and any parent sequences,
+  switch (label) {
+    case "continue": // We want to RESTART Loop
+      return this.__continue();
+    case "break": // We want to END Current Sequence
+      return this.__break();
+    case "end": // We want to END Everything
+      return this.__end();
+  }
+
+  // Does the Label Exist?
+  if (!this.__labels.hasOwnProperty(label)) { // NO
+    throw "Missing Goto Label [" + label + "]";
+  }
+
+  // Reposition the Current Entry to the 'label' and process it.
+  this.__current = this.__labels[label];
+  return this.__processEntry(this.__calls[this.__current++]);
+};
+
+Sequence.prototype._break = function() {
+  // Is this sequence finished?
+  if (this.finished) { // YES: Ignore Call
+    throw "SEQUENCE: Called 'break' after sequence completed.";
+  }
+
+  // Take a look at what is at the top of the stack
+  var top = this.__peekTopStack();
+
+  // Was an 'if' at the top of stack?
+  if (top.hasOwnProperty("if") || top.hasOwnProperty("loop")) { // YES
+    // Do 'false' processing
+    return this.__false();
+  }
+
+  return this.__break();
+};
+
+Sequence.prototype.__break = function() {
+  // Pop element Off Stack
+  var top = this.__stack.pop();
+
+  // Is this the 'root' sequence?
+  if (this.isRootSequence()) { // YES: Then just end it
+    return this.end();
+  }
+
+  // Are we with an Loop Block
+  if (this.__isLoopBlock()) { // YES: Break the Loop
+    // Reset Context to Point to Correct Sequence
+    this.__context.sequence(this.__parent);
+    return this.__parent.__exitLoopBlock("break", this.__errorsList);
+  }
+  // ELSE: Break Parent Sequence
+  this.finished = true;
+  return this.__parentBreak();
+};
+
+Sequence.prototype.__parentBreak = function() {
+  // Reset Context to Point to Correct Sequence
+  this.__context.sequence(this.__parent);
+
+  // Did we have errors in the processing of this sequence?
+  if (this.__errorsList !== null) { // YES
+    return this.__parent.__errors(this.__errorsList);
+  }
+  // ELSE: Break Parent Processing
+  return this.__parent.__break();
+};
+
+Sequence.prototype._next = function() {
+  // Is this sequence finished?
+  if (this.finished) { // YES: Ignore Call
+    throw "SEQUENCE: Called next() after sequence completed.";
+  }
+
+  return this.__next();
+};
+
+Sequence.prototype.__next = function() {
+  // Pop element Off Stack
+  var top = this.__stack.pop();
+
+  // Does the Entry have a 'goto' associated?
+  if (!_.isNil(top) && (top["goto"] !== null)) { // YES: Continue from that point
+    return this.__goto(top["goto"]);
+  }
+
+  if (this.__current < this.__calls.length) {
+    return this.__processEntry(this.__calls[this.__current++]);
+  }
+
+  // Is this the 'root' sequence?
+  if (this.isRootSequence()) { // YES: Then just end it
+    return this.__end();
+  }
+  // ELSE: Continue the 'parent' Sequence
+  this.finished = true;
+  return this.__parentNext();
+};
+
+Sequence.prototype.__parentNext = function() {
+  // Reset Context to Point to Correct Sequence
+  this.__context.sequence(this.__parent);
+
+  // Did we have errors in the processing of this sequence?
+  if (this.__errorsList !== null) { // YES
+    return this.__parent.__errors(this.__errorsList);
+  }
+  // ELSE: Continue Processing Parent
+  return this.__parent.__next();
+};
+
+Sequence.prototype._errors = function(errors, doBreak) {
+  // Is this sequence finished?
+  if (this.finished) { // YES: Ignore Call
+    throw "SEQUENCE: Called 'errors' after sequence completed.";
+  }
+
+  return this.__errors(errors, doBreak);
+};
+
+Sequence.prototype.__errors = function(errors, doBreak) {
+  // Append Errors to Current Sequence array
+  this.__errorsList = _appendToArray(this.__errorsList, errors);
+
+  // Do we need to Break on this error?
+  if (doBreak || !this.breakOnError()) { // NO: Continue Sequence Processing
+    return this.__next();
+  }
+
+  return this.__break();
+};
+
+Sequence.prototype._end = function() {
+  // Is this sequence finished?
+  if (this.finished) { // YES: Ignore Call
+    throw "SEQUENCE: Called 'end' after sequence completed.";
+  }
+
+  return this.__end();
+};
+
+Sequence.prototype.__end = function() {
+  // Mark Sequence Finished
+  this.__finished = true;
+
+  // Is this a Child Sequence?
+  if (!this.isRootSequence()) { // YES: Call the Parent Context's 'end'
+    return this.__parentEnd();
+  }
+
+  // Did the run generate errors?
+  if (this.__errorsList !== null) { // YES: Call Error Handler (if it exists)
+    // Call the Error Handler for the Sequence
+    return this.__onError !== null ?
+           _wrappedCall(this.__context, this.__onError, this.__errorsList) : false;
+  } else { // NO: Call the Success Handler for the Sequence (if it exists)
+    return this.__onSuccess !== null ?
+           _wrappedCall(this.__context, this.__onSuccess) : false;
+  }
+};
+
+Sequence.prototype.__parentEnd = function() {
+  // Reset Context to Point to Correct Sequence
+  this.__context.sequence(this.__parent);
+
+  // Did we have errors in the processing of this sequence?
+  if (this.__errorsList !== null) { // YES: Append Errors to Parents Error List
+    this.__parent.__errorsList = _appendToArray(this.__parent.__errorsList, this.__errorsList);
+  }
+
+  // Call Parent Sequence to End
+  return this.__parent.__end();
+};
+
+Sequence.prototype._true = function() {
+  // Is this sequence finished?
+  if (this.finished) { // YES: Ignore Call
+    throw "SEQUENCE: Called 'true' after sequence completed.";
+  }
+
+  // Take a look at what is at the top of the stack
+  var top = this.__peekTopStack();
+
+  // Do we have a valid context?
+  if (top === null) { // NO
+    throw "SEQUENCE: 'true' called from invalid context";
+  }
+
+  // Are we dealing with a 'if' or 'loop' condition clause?
+  if (top.hasOwnProperty("if") || top.hasOwnProperty("loop")) { // YES
+    // Call 'true' handling
+    return this.__true();
+  }
+  // ELSE: Treat as Simple 'next'
+  return this.__next();
+};
+
+Sequence.prototype.__true = function() {
+  var top = this.__stack.pop();
+
+  // Is the Top of the Stack a Loop entry?
+  if (top.hasOwnProperty("loop")) { // YES: continue called from Loop Check Function
+    // Replace the LOOP back on the stack
+    this.__stack.push(top);
+
+    // (Re)Execute Loop Block
+    var block = top["block"];
+    this.__loopRun = true;
+    return this.__processSequence(block);
+  }
+
+  // Was an 'if' at the top of stack?
+  if (top.hasOwnProperty("if")) { // YES
+    // Does the 'if' have an 'then' clause?
+    if (!_.isNil(top["then"])) { // YES: Execute it
+      return this.__processEntry(top["then"]);
+    }
+    // ELSE: Continue the Sequence
+    return this.__next();
+  }
+
+  // Should not be able to reach this point
+  throw "System Error";
+};
+
+Sequence.prototype._false = function() {
+  // Is this sequence finished?
+  if (this.finished) { // YES: Ignore Call
+    throw "SEQUENCE: Called 'false' after sequence completed.";
+  }
+
+  // Take a look at what is at the top of the stack
+  var top = this.__peekTopStack();
+
+  // Do we have a valid context?
+  if (top === null) { // NO
+    throw "SEQUENCE: 'false' called from invalid context";
+  }
+
+  // Are we dealing with a 'if' or 'loop' condition clause?
+  if (top.hasOwnProperty("if") || top.hasOwnProperty("loop")) { // YES
+    // Call 'false' handling
+    return this.__false();
+  }
+  // ELSE: Treat as Simple 'break'
+  return this.__break();
+};
+
+Sequence.prototype.__false = function() {
+  var top = this.__stack.pop();
+
+  // Is the Top of the Stack a Loop entry?
+  if (top.hasOwnProperty("loop")) { // YES
+    // Replace the 'loop' entry back on the stack
+    this.__stack.push(loop);
+
+    // End the Loop
+    return this.__exitLoop("end", null);
+  }
+
+  // Was an 'if' at the top of stack?
+  if (top.hasOwnProperty("if")) { // YES
+    // Does the 'if' have an 'else' clause?
+    if (!_.isNil(top["else"])) { // YES: Execute it
+      return this.__processEntry(top["else"]);
+    }
+    // ELSE: Continue the Sequence
+    return this.__next();
+  }
+
+  // Should not be able to reach this point
+  throw "System Error";
+};
+
+Sequence.prototype._continue = function() {
+  // Is this sequence finished?
+  if (this.finished) { // YES: Ignore Call
+    throw "SEQUENCE: Called 'continue' after sequence completed.";
+  }
+
+  // Take a look at what is at the top of the stack
+  var top = this.__peekTopStack();
+
+  // Do we have a valid context?
+  if (top === null) { // NO
+    throw "SEQUENCE: 'continue' called from invalid context";
+  }
+
+  // Are we dealing with a 'if' or 'loop' condition clause?
+  if (top.hasOwnProperty("if") || top.hasOwnProperty("loop")) { // YES
+    // Call 'true' handling
+    return this.__true();
+  }
+
+  // Are we within a Loop Block?
+  if (this.__isLoopBlock()) { // YES: Restart Loop
+    // Reset Context to Point to Correct Sequence
+    this.__context.sequence(this.__parent);
+    return this.__parent.__exitLoop("continue", this.__errorsList);
+  }
+  // ELSE: Treat as Simple 'next'
+  return this.__next();
+};
+
+Sequence.prototype.__exitLoop = function(code, errors) {
+  var loop = null;
+  switch (code) {
+    case "continue":
+      // Save Error Codes for Later
+      this.__loopErrors = _appendToArray(this.__loopErrors, errors);
+      // Get the Currently Executing Loop
+      loop = this.__peekTopStack();
+
+      // Re-Execute Check Function
+      var check = entry["loop"];
+      return _.isBoolean(check) ?
+             this.__executeBlock(entry["block"]) : this.__processMethod(check);
+    case "break":
+      // Save Error Codes for Later
+      this.__loopErrors = _appendToArray(this.__loopErrors, errors);
+    case "end":
+      // Get the Currently Executing Loop
+      var loop = this.__stack.pop();
+
+      // Does the loop's sequence 'block' have errors?
+      if (this.__loopErrors === null) { // NO
+        // Do we have an succes handler to execute?
+        if (loop.hasOwnProperty("on-success")) {
+          return this._processEntry(loop["on-success"]);
+        }
+        // ELSE: NO - Simple Continue Sequence Execution
+        return this.__next();
+      } else { // YES
+        // Do we have an error handler to execute?
+        if (loop.hasOwnProperty("on-error")) { // YES: Execute it
+          return this._processEntry(loop["on-error"]);
+        }
+        // ELSE: NO - Use normal error handling
+        return this.__errors(this.__loopErrors, true);
+      }
+  }
+};
+
+/* ENTRY PROCESSING */
+Sequence.prototype.__processError = function(entry) {
+  var error = entry["error"];
+
+  // Is the 'error' value a string?
+  if (_.isString(error)) { // YES: Do Normal Processing
+    var doBreak = entry["do-break"];
+    this.__error(error, doBreak);
+  } else { // NO: Call Error Method
+    /* NOTE: the 'error method' is not put on the stack, so a call to
+     * next() / break() will only see the error entry
+     */
+    return this.__processMethod(error);
+  }
+};
+
+Sequence.prototype.__processIF = function(entry) {
+  return this.__processMethod(entry["if"]);
+};
+
+Sequence.prototype.__processLOOP = function(entry) {
+  // Reset loop state control
+  this.__loopErrors = [];
+  this.__loopRun = false;
+
+  // Execute Check Function
+  var check = entry["loop"];
+  return _.isBoolean(check) ?
+         this.__processSequence(entry["block"]) : this.__processMethod(check);
+};
+
+Sequence.prototype.__processMethod = function(entry) {
+  return _wrappedCall(this.__context,
+                      entry.method,
+                      entry.hasOwnProperty("params") ? entry.params : null);
+};
+
+Sequence.prototype.__processSequence = function(entry) {
+  // Get the Sequence to Execute
+  var sequence = entry["sequence"];
+
+  // Execute the Sequence
+  return sequence
+    .setParent(this) // Set the Parent
+    .start(this.__context);
+};
+
+Sequence.prototype.__processGoto = function(entry) {
+  this.__stack.pop();
+  return this.__goto(entry["goto"]);
+};
+
+Sequence.prototype.__processEntry = function(entry) {
+  // Save Current Entry on the Stack
+  this.__stack.push(entry);
+
+  // Is the Entry a Error Statement?
+  if (entry.hasOwnProperty("error")) { // YES
+    return this.__processError(entry);
+  }
+
+  // Is the Entry an If Statement?
+  if (entry.hasOwnProperty("if")) { // YES
+    return this.__processIF(entry);
+  }
+
+  // Is the Entry a Loop Statement?
+  if (entry.hasOwnProperty("loop")) { // YES
+    return this.__processLOOP(entry);
+  }
+
+  // Is the Entry a Call Method Statement?
+  if (entry.hasOwnProperty("method")) { // YES
+    return this.__processMethod(entry);
+  }
+
+  // Is the Entry a Sequence Statement?
+  if (entry.hasOwnProperty("sequence")) { // YES
+    return this.__processSequence(entry);
+  }
+
+  // Is the Entry a Call Method Statement?
+  if (entry.hasOwnProperty("goto")) { // YES
+    return this.__processGoto(entry);
+  }
+
+  // Invalid Method Entry
+  console.error(entry);
+  throw "Invalid Sequence Entry";
+};
+
+/* HELPER METHODS */
+Sequence.prototype.__peekTopStack = function() {
+  // Peek at the stack
+  return this.__stack.length ?  this.__stack[this.__stack.length - 1] : null;
+};
+
+Sequence.prototype.__isLoopBlock = function() {
+  var topParent = this.__parent.__peekTopStack();
+  return (topParent !== null) && topParent.hasOwnProperty("loop");
 };
 
 // Export Constructor
