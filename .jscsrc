@@ -3,7 +3,7 @@
   "disallowTabs": true,
   "requireDotNotation": false,
   "requireAlignedMultilineParams": "firstParam",
-  "requirePaddingNewLinesBeforeLineComments": { "allExcept": "firstAfterCurly" },
+  "requirePaddingNewLinesBeforeLineComments": false,
   "requireSpacesInsideParentheses": null,
   "requireSpacesInsideBrackets": null,
   "requireSpacesInsideObjectBrackets": null,

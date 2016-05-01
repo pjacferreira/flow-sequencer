@@ -4,6 +4,7 @@
 *#
 *.bak
 *.org
+/notes
 
 # Netbeans
 .netbeans
