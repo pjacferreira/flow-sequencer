@@ -626,7 +626,7 @@ Sequence.prototype.start = function(context) {
 
 Sequence.prototype._goto = function(label) {
   // Is this sequence finished?
-  if (this.finished) { // YES: Ignore Call
+  if (this.__finished) { // YES: Ignore Call
     throw "SEQUENCE: Called 'goto' after sequence completed.";
   }
 
@@ -665,8 +665,9 @@ Sequence.prototype.__goto = function(label) {
 
 Sequence.prototype._break = function() {
   // Is this sequence finished?
-  if (this.finished) { // YES: Ignore Call
-    throw "SEQUENCE: Called 'break' after sequence completed.";
+  if (this.__finished) { // YES: Ignore Call
+    // DO NOTHING (Allows for Callstack to unroll, in deeply nested call)
+    return this;
   }
 
   // Take a look at what is at the top of the stack
@@ -687,7 +688,7 @@ Sequence.prototype.__break = function() {
 
   // Is this the 'root' sequence?
   if (this.isRootSequence()) { // YES: Then just end it
-    return this.end();
+    return this.__end();
   }
 
   // Are we with an Loop Block
@@ -697,7 +698,7 @@ Sequence.prototype.__break = function() {
     return this.__parent.__exitLoopBlock("break", this.__errorsList);
   }
   // ELSE: Break Parent Sequence
-  this.finished = true;
+  this.__finished = true;
   return this.__parentBreak();
 };
 
@@ -715,8 +716,9 @@ Sequence.prototype.__parentBreak = function() {
 
 Sequence.prototype._next = function() {
   // Is this sequence finished?
-  if (this.finished) { // YES: Ignore Call
-    throw "SEQUENCE: Called next() after sequence completed.";
+  if (this.__finished) { // YES: Ignore Call
+    // DO NOTHING (Allows for Callstack to unroll, in deeply nested call)
+    return this;
   }
 
   return this.__next();
@@ -740,7 +742,7 @@ Sequence.prototype.__next = function() {
     return this.__end();
   }
   // ELSE: Continue the 'parent' Sequence
-  this.finished = true;
+  this.__finished = true;
   return this.__parentNext();
 };
 
@@ -758,8 +760,9 @@ Sequence.prototype.__parentNext = function() {
 
 Sequence.prototype._errors = function(errors, doBreak) {
   // Is this sequence finished?
-  if (this.finished) { // YES: Ignore Call
-    throw "SEQUENCE: Called 'errors' after sequence completed.";
+  if (this.__finished) { // YES: Ignore Call
+    // DO NOTHING (Allows for Callstack to unroll, in deeply nested call)
+    return this;
   }
 
   return this.__errors(errors, doBreak);
@@ -770,7 +773,7 @@ Sequence.prototype.__errors = function(errors, doBreak) {
   this.__errorsList = _appendToArray(this.__errorsList, errors);
 
   // Do we need to Break on this error?
-  if (doBreak || !this.breakOnError()) { // NO: Continue Sequence Processing
+  if (!doBreak || !this.breakOnError()) { // NO: Continue Sequence Processing
     return this.__next();
   }
 
@@ -779,8 +782,9 @@ Sequence.prototype.__errors = function(errors, doBreak) {
 
 Sequence.prototype._end = function() {
   // Is this sequence finished?
-  if (this.finished) { // YES: Ignore Call
-    throw "SEQUENCE: Called 'end' after sequence completed.";
+  if (this.__finished) { // YES: Ignore Call
+    // DO NOTHING (Allows for Callstack to unroll, in deeply nested call)
+    return this;
   }
 
   return this.__end();
@@ -821,7 +825,7 @@ Sequence.prototype.__parentEnd = function() {
 
 Sequence.prototype._true = function() {
   // Is this sequence finished?
-  if (this.finished) { // YES: Ignore Call
+  if (this.__finished) { // YES: Ignore Call
     throw "SEQUENCE: Called 'true' after sequence completed.";
   }
 
@@ -872,7 +876,7 @@ Sequence.prototype.__true = function() {
 
 Sequence.prototype._false = function() {
   // Is this sequence finished?
-  if (this.finished) { // YES: Ignore Call
+  if (this.__finished) { // YES: Ignore Call
     throw "SEQUENCE: Called 'false' after sequence completed.";
   }
 
@@ -921,7 +925,7 @@ Sequence.prototype.__false = function() {
 
 Sequence.prototype._continue = function() {
   // Is this sequence finished?
-  if (this.finished) { // YES: Ignore Call
+  if (this.__finished) { // YES: Ignore Call
     throw "SEQUENCE: Called 'continue' after sequence completed.";
   }
 
@@ -995,7 +999,7 @@ Sequence.prototype.__processError = function(entry) {
   // Is the 'error' value a string?
   if (_.isString(error)) { // YES: Do Normal Processing
     var doBreak = entry["do-break"];
-    this.__error(error, doBreak);
+    this.__errors(error, doBreak);
   } else { // NO: Call Error Method
     /* NOTE: the 'error method' is not put on the stack, so a call to
      * next() / break() will only see the error entry
