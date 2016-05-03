@@ -394,51 +394,6 @@ function _cleanEntry(entry, top) {
   return entry;
 }
 
-var __context = {
-  sequence: function(set) {
-    if (_.isNil(set) || !(set instanceof Sequence)) {
-      return this.__sequence;
-    } else {
-      var old = this.__sequence;
-      this.__sequence = set;
-      return old;
-    }
-  },
-  errors: function(err, doBreak) {
-    doBreak = _.isNil(doBreak) ? true : !!doBreak;
-    return this.__sequence._errors(err, doBreak);
-  },
-  goto: function(label) {
-    return this.__sequence.goto(label);
-  },
-  end: function() {
-    return this.__sequence.end();
-  },
-  next: function() {
-    return this.__sequence.__next();
-  },
-  break: function() { // Stop the Loop
-    return this.__sequence.break();
-  },
-  continue: function() { // Continue the Loop
-    return this.__sequence.continue();
-  },
-  "true": function() { // Continue the Loop
-    return this.__sequence.true();
-  },
-  "false": function() { // Continue the Loop
-    return this.__sequence.false();
-  },
-  async: function(call) {
-    if (this.hasOwnProperty(call) && _.isFunction(this[call])) {
-      var saveThis = this;
-      setTimeout(function() {
-        saveThis[call]();
-      }, 0);
-    };
-  }
-};
-
 /* RULES:
  * function starting with _ are functions that are only callable from within the
  * sequence context (i.e. methods that make up part of the sequence steps)
@@ -761,6 +716,7 @@ Sequence.prototype.__parentNext = function() {
 Sequence.prototype._errors = function(errors, doBreak) {
   // Is this sequence finished?
   if (this.__finished) { // YES: Ignore Call
+    console.error(errors);
     // DO NOTHING (Allows for Callstack to unroll, in deeply nested call)
     return this;
   }
