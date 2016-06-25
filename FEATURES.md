@@ -87,8 +87,8 @@ As you can see, .template(...) basically behaves like .add(...).
 
 You can:
 
-1. Pass in parameters to template method
+1. Pass in parameters to the template method
 2. Assign a 'label' to the template entry
 
-If you assign a 'label' to the template entry, the label, will be assigned to the
-first entry ADDED by the template. This "allows you" to goto a template.
+If you assign a 'label' to the template entry, the label, will be transferred to the
+first entry ADDED by the template. This "allows you" to "goto" a template.
