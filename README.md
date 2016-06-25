@@ -9,9 +9,9 @@ The natural solution would be to use a module like 'async' to solve the problem.
 But, I prefer to re-invent the wheel (Actually, I don't, I just needed
 something that made my code easier to read, more granular/reusable).
 
-So, I created this module, to try to create a BASIC like structure to callbacks.
+So, I created this module, to create a BASIC like structure to callbacks.
 
-It's probably easier just to show a piece of code to explain how it works:
+It's probably easier just to show a piece of code than explain how it works:
 
 ```js
 ...
@@ -53,7 +53,8 @@ Sequence
 ...
 ```
 
-This Basically creates an asynchronous call sequence, with some control structures (if/then/else, loop, goto, Nested Sequences, etc) sprinkled in. If you can live within this structure it should make your code easier to read.
+This Basically creates an asynchronous call sequence, with some control structures (if/then/else, loop, goto, Nested Sequences, etc) sprinkled in. If you can live
+within this structure, it should make your code easier to read.
 
 ## Basic API
 

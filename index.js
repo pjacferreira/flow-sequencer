@@ -485,6 +485,30 @@ Sequence.prototype.add = function(entry) {
   return this;
 };
 
+Sequence.prototype.template = function(entry) {
+  // Clean up Template Entry by Treating it a Method Entry
+  var newEntry = _cleanMethod(entry, false);
+
+  if (_.isNil(newEntry)) { // NO: Log Error
+    console.error("Invalid Template Entry");
+  } else { // YES: Execute Template
+    // Save Last Index Position
+    var lastIndex = this.__calls.length;
+
+    // Execute Template
+    _callMethod(this, newEntry);
+
+    // Does the Template Have a Label Associated?
+    if(!_.isNil(newEntry)) { // YES
+      // Move the Label to the 1st Template Entry and Mark it's Entry
+      this.__calls[lastIndex].label = entry.label;
+      this.__labels[entry.label] = lastIndex;
+    }
+  }
+
+  return this;
+};
+
 Sequence.prototype.hasErrors = function() {
   return this.__errorsList !== null;
 };
