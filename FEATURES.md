@@ -86,6 +86,7 @@ update: function(req, res, next) {
 As you can see, .template(...) basically behaves like .add(...).
 
 You can:
+
 1. Pass in parameters to template method
 2. Assign a 'label' to the template entry
 
