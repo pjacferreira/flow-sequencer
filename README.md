@@ -1,5 +1,13 @@
 # flow-sequencer
 
+## Breaking News
+
+I'm currently working on FEATURES.md. 
+
+This file will contain a, feature by feature description of how it works (with all of the tricks
+you can't see, unless you look at the code). It's still a work in progress and it starts off with 
+the new Template Feature.
+
 ## Basic Concept
 
 While working with SailsJS I ran into the one of the pains of NodeJS programming: Nested Callbacks.
