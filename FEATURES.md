@@ -219,4 +219,14 @@ var method_call_entry = {
 
 So what are the **gotchas**?
 
-Well,
+Well:
+
+1. *basic_method_call_entry* is the same as normal method call entry (above) with
+two exceptions:
+  * it can't have a *label* and *goto* (i.e. you can't jump into the middle of an if or out of it)
+  * instead of calling *this.next()* or *this.break()* to continue the sequence, it should call *this.true()* or *this.false()*.
+  * Basically, if *this.true()* is called the *then* entry is executed, if *this.false()* is called the else entry is executed.
+2. then/else sequence entries can literally be any valid sequence entry, with the only limitation being that they can't have a *label* (i.e. the same concept as above, you can't jump into the middle of an *if*).
+3. What if I don't want to handle the **false** case (i.e. I don't want the *else* entry)? Simply Don't include it (same applies if you don't want the *then* clause). If the sequence sees the *else* is missing it will just continue processing with the next entry after the *if*.
+
+The very minimum if/then/else entry requires the *if* and one of *then*/*else* (but not both).
