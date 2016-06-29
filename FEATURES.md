@@ -22,7 +22,6 @@ Code Example: Find a User by Name or ID
 
 ```
 ...
-
 // Default Options (and values) for Template Find
 var _templateFindDefaults = {
   firm: null,                      // Limit Search to a Specific Firm
@@ -31,9 +30,7 @@ var _templateFindDefaults = {
   required: true,                  // Result Value Required?
   error: "User does not exist" // Default Error Message
 };
-
 ...
-
 templateFind: function(user, options) {
   // Initialize Options
   options = helpers.isSimpleObject(options) ?
@@ -55,9 +52,7 @@ templateFind: function(user, options) {
 
   return this;
 }
-
 ...
-
 update: function(req, res, next) {
   try {
     // Make sure we have a Valid Session
@@ -77,10 +72,10 @@ update: function(req, res, next) {
         response: res,
         rnext: next
       });
-    } catch (e) {
-      return responses.error(req, res, next, e);
-    }
-  },
+  } catch (e) {
+    return responses.error(req, res, next, e);
+  }
+},
 ```
 
 As you can see, .template(...) basically behaves like .add(...).
@@ -91,4 +86,137 @@ You can:
 2. Assign a 'label' to the template entry
 
 If you assign a 'label' to the template entry, the label, will be transferred to the
-first entry ADDED by the template. This "allows you" to "goto" a template.
+first entry ADDED by the template. This "allows you" to "goto" **the start** of the template.
+
+## Method Calls
+
+One of the most basic uses of Flow Sequencer is to call functions in a Specific
+order. To do that, you just simply use the flow-sequencer add method.
+
+```
+// Include Module
+var Sequence = require("flow-sequencer");
+...
+
+// Create Sequence
+Sequence
+  .getInstance()
+  ...
+  // Add Method Call
+  .add(callThisMethod)
+  ...
+  .start()
+
+```
+
+You have 2 options when using add():
+
+1. Pass it a function reference.
+2. Pass it a valid flow sequencer entry object.
+
+In the example we are just simply passing it a function reference, which the
+add() will automatically convert to a valid method call entry which will be used
+during sequence processing.
+
+Below is an example of a full (all the options) flow sequencer method call entry.
+
+```
+var method_call_entry = {
+  label:  "label for goto jump destination",
+  method: functionReference,
+  params: [ of, parameters, to, pass, to, functionReference],
+  goto:   "label to jump to if the function completes without error"
+};
+```
+
+Through the use of very liberal property values, I hope the entry's properties have
+been basically explained, but I would still like to point out 3 things:
+
+1. functionReference is called within the sequence context.
+
+**VERY IMPORTANT**
+sequence context !== *Sequence.getInstance()*. The sequence context, is the
+object, passed to *Sequence.start({})*, which is augmented with some functions (i.e.
+*next*, *break*, *errors*, *end*, etc) that allow you to sequentially process the sequence.
+
+**ALSO VERY IMPORTANT**
+all properties in the sequence context, are available to functionReference, as part of
+the functions *this* properties.
+
+If you want to pass values between differente sequence entries, you can use context
+parameters, as long as you remember that you can't OVERWRITE the SPECIAL FUNCTIONS
+(*next*, *break*, *errors*, *end*, etc) that have been added to sequence context, by flow-sequencer.
+
+2. *params* is an array value, but, you can still pass it a non array value, it
+will just simply be assume that your function only accepts a single parameter value.
+Internally (after cleanup but before being executed), *params* that are passed as
+non array values, will be converted to an array with a single value.
+
+So, the following is also valid:
+
+```
+var entry = {
+  ...
+  params: only_one_parameter,
+  ...
+};
+```
+
+3. As a special HACK I have added the *goto* property to the method entry.
+Basically this allows you to convert the following scenario:
+
+```
+// Include Module
+var Sequence = require("flow-sequencer");
+...
+
+// Create Sequence
+Sequence
+  .getInstance()
+  ...
+  .add(callThisMethod)  // Call method
+  .add({goto: "end"})   // End the Sequence
+  ...
+  .start()
+
+```
+
+into:
+
+```
+// Include Module
+var Sequence = require("flow-sequencer");
+...
+
+// Create Sequence
+Sequence
+  .getInstance()
+  ...
+  // Call Method and, if it doesn't throw an error, end the sequence
+  .add({
+    method: callThisMethod,
+    goto:   "end"
+  })  // Call method
+  ...
+  .start()
+
+```
+
+It's basically syntactic sugar.
+
+## IF/THEN/ELSE Entries
+
+IF/THEN/ELSE is a simple control structure. The most complete entry format is:
+
+```
+var method_call_entry = {
+  label: "label for goto jump destination",
+  if:    basic_method_call_entry
+  then:  then_any_valid_sequence_entry
+  else:  else_any_valid_sequence_entry
+};
+```
+
+So what are the **gotchas**?
+
+Well,
